@@ -36,6 +36,7 @@ public class MapController : MonoBehaviour
 
     #region Войска
     public GameObject unitPrefab;
+    public SpawnInfo[] spawnQueue;
 
     private List<CharacterController> _characters;
     #endregion
@@ -44,8 +45,6 @@ public class MapController : MonoBehaviour
     void Start()
     {
         InitiateMap();
-
-        AddUnit(new Knight(), Vector3Int.zero, 1);
 
         onMouseEnter += Highlite;
     }
@@ -73,6 +72,11 @@ public class MapController : MonoBehaviour
         }
 
         _characters = new List<CharacterController>();
+
+        foreach (var info in spawnQueue) {
+            Unit unit = Spawner.SpawnUnit(info.name, info.count);
+            AddUnit(unit, info.position);
+        }
     }
 
     private void Highlite(Vector3Int coord)
@@ -112,12 +116,16 @@ public class MapController : MonoBehaviour
         _activeCoord = coordinate;
     }
 
-    private void AddUnit(Unit unit, Vector3Int pos, int count)
+    private void AddUnit(Unit unit, Vector3Int pos)
     {
+        if (_battleField[pos] == 1) {
+            pos = FindEmpty();
+            if (pos.z == 1) return;
+        }
+        
         CharacterController character = Instantiate(unitPrefab, tilemap.CellToWorld(pos), Quaternion.identity).GetComponent<CharacterController>();
 
         character.unit = unit;
-        character.count = count;
 
         for (int i = 0; i < _characters.Count; i++)
             if (_characters[i].unit.initiative < unit.initiative) { 
@@ -128,6 +136,21 @@ public class MapController : MonoBehaviour
 
         _characters.Add(character);
         UpdateIDs();
+        _battleField[pos] = 1;
+    }
+
+    private Vector3Int FindEmpty()
+    {
+        //Если место не будет найдено, то возвращается вектор с Z = 1
+        Vector3Int pos = Vector3Int.forward;
+        
+        for (int x = 0; x < mapSize.x; x++)
+            for (int y = 0; y < mapSize.y; y++)
+                if (_battleField[new Vector3Int(x, y, 0)] == 0) {
+                    pos = new Vector3Int(x, y, 0);
+                }
+
+        return pos;
     }
 
     private void UpdateIDs()
@@ -135,4 +158,28 @@ public class MapController : MonoBehaviour
         for (int i = 0; i < _characters.Count; i++)
             _characters[i].ID = i;
     }
+}
+
+public static class Spawner
+{
+    public static Unit SpawnUnit(UnitName name, int count)
+    {
+        Unit unit = null;
+
+        switch (name) {
+            case UnitName.Knight:
+                unit = new Knight(count);
+                break;
+        }
+
+        return unit;
+    }
+}
+
+[System.Serializable]
+public class SpawnInfo
+{
+    public UnitName name;
+    public int count = 1;
+    public Vector3Int position;
 }

@@ -42,6 +42,7 @@ public class MapController : MonoBehaviour
 
     private List<CharacterController> _characters;
     private Dictionary<Vector3Int, (int dist, Vector3Int[] neighbours)> _dijkstra;
+    private bool canCommand = false;
     #endregion
 
     // Start is called before the first frame update
@@ -177,7 +178,7 @@ public class MapController : MonoBehaviour
 
     private void StartTurn()
     {
-        Debug.Log("a");
+        canCommand = true;
         CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
     }
 
@@ -189,8 +190,6 @@ public class MapController : MonoBehaviour
 
     private void CalculateDijkstra(Vector3Int pos, int dist, bool init)
     {
-        Debug.Log(dist);
-
         if (init) _dijkstra = new Dictionary<Vector3Int, (int, Vector3Int[])>();
 
         if (!_battleField.ContainsKey(pos) || dist > _characters[turn].unit.distance || (_battleField[pos] == 1 && !init))
@@ -200,8 +199,6 @@ public class MapController : MonoBehaviour
         int offset = Mathf.Abs(pos.y % 2);
 
         if (!_dijkstra.ContainsKey(pos)) {
-            Debug.Log("ABOBA");
-
             Vector3Int[] neigh = new Vector3Int[]
             {
                 pos - new Vector3Int(1 - offset, -1, 0),
@@ -226,7 +223,9 @@ public class MapController : MonoBehaviour
 
     private void MoveUnit(Vector3Int target)
     {
-        if (!_battleField.ContainsKey(target) || !_dijkstra.ContainsKey(target)) return;
+        if (!canCommand || !_battleField.ContainsKey(target) || !_dijkstra.ContainsKey(target)) return;
+
+        canCommand = false;
 
         Vector3Int oldPos = tilemap.WorldToCell(_characters[turn].transform.position);
 
@@ -235,7 +234,25 @@ public class MapController : MonoBehaviour
 
         List<Vector3> way = new List<Vector3>();
 
+        int minDist = _dijkstra[target].dist;
+
+        //Самой последней точкой является сама цель перемещения
         way.Add(tilemap.CellToWorld(target));
+
+        while (minDist > 0) {
+            Vector3Int[] neighbours = _dijkstra[target].neighbours;
+
+            foreach (var pos in neighbours) {
+                if (!_dijkstra.ContainsKey(pos)) continue;
+
+                if (_dijkstra[pos].dist < minDist) {
+                    minDist = _dijkstra[pos].dist;
+                    target = pos;
+                }
+            }
+
+            way.Insert(0, tilemap.CellToWorld(target));
+        }
 
         _characters[turn].SetWay(way);
     }

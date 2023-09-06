@@ -11,7 +11,6 @@ public class CharacterController : MonoBehaviour
     public event CharacterEventHandler onMoveEnd;
 
     private List<Vector3> _way;
-    private bool isMove = false;
 
     private void Start()
     {
@@ -19,39 +18,30 @@ public class CharacterController : MonoBehaviour
         unit = new Knight();
     }
 
-    private void Update()
-    {
-        Move();
-    }
-
     public void SetWay(List<Vector3> way)
     {
-        if (isMove) return;
-
         _way = way;
-        isMove = true;
+        StartCoroutine(Move());
     }
 
-    private void Move()
+    private IEnumerator Move()
     {
-        if (!isMove) return;
+        while (_way.Count > 0) {
+            transform.position = Vector3.MoveTowards(transform.position, _way[0], unit.speed * Time.deltaTime);
+            if (transform.position == _way[0])
+                _way.RemoveAt(0);
 
-        if (_way.Count == 0) {
-            onMoveEnd?.Invoke();
-            isMove = false;
-            return;
+            yield return new WaitForEndOfFrame();
         }
-
-        transform.position = Vector3.Lerp(transform.position, _way[0], unit.speed);
-        if (transform.position == _way[0])
-            _way.RemoveAt(0);
+        
+        onMoveEnd?.Invoke();
     }
 }
 
 public abstract class Unit
 {
     //Скорость перемещения по карте
-    public float speed = 0.05f;
+    public float speed = 2f;
 
     # region Основные характеристики
     public int count = 1;

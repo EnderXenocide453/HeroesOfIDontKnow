@@ -41,6 +41,7 @@ public class MapController : MonoBehaviour
     public int turn { get; private set; } = 0;
 
     private List<CharacterController> _characters;
+    private Dictionary<Vector3Int, (int dist, Vector3Int[] neighbours)> _dijkstra;
     #endregion
 
     // Start is called before the first frame update
@@ -48,7 +49,9 @@ public class MapController : MonoBehaviour
     {
         InitiateMap();
 
-        onMouseEnter += Highlite;
+        StartTurn();
+
+        //onMouseEnter += Highlite;
         onMouseUp += MoveUnit;
     }
 
@@ -142,6 +145,14 @@ public class MapController : MonoBehaviour
         _characters.Add(character);
         UpdateIDs();
         _battleField[pos] = 1;
+
+        character.onMoveEnd += EndTurn;
+        character.unit.onDeath += RemoveUnit;
+    }
+
+    private void RemoveUnit(object id)
+    {
+        _characters.RemoveAt((int)id);
     }
 
     private Vector3Int FindEmpty()
@@ -164,20 +175,69 @@ public class MapController : MonoBehaviour
             _characters[i].ID = i;
     }
 
+    private void StartTurn()
+    {
+        Debug.Log("a");
+        CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
+    }
+
     private void EndTurn()
     {
         turn = (turn + 1) % _characters.Count;
+        StartTurn();
+    }
+
+    private void CalculateDijkstra(Vector3Int pos, int dist, bool init)
+    {
+        Debug.Log(dist);
+
+        if (init) _dijkstra = new Dictionary<Vector3Int, (int, Vector3Int[])>();
+
+        if (!_battleField.ContainsKey(pos) || dist > _characters[turn].unit.distance || (_battleField[pos] == 1 && !init))
+            return;
+
+        //Параметр сдвига по гексагональной сетке
+        int offset = Mathf.Abs(pos.y % 2);
+
+        if (!_dijkstra.ContainsKey(pos)) {
+            Debug.Log("ABOBA");
+
+            Vector3Int[] neigh = new Vector3Int[]
+            {
+                pos - new Vector3Int(1 - offset, -1, 0),
+                pos - new Vector3Int(1, 0, 0),
+                pos - new Vector3Int(1 - offset, 1, 0),
+                pos - new Vector3Int(0 - offset, 1, 0),
+                pos - new Vector3Int(0 - offset, -1, 0),
+                pos - new Vector3Int(-1, 0, 0)
+            };
+
+            _dijkstra.Add(pos, (dist, neigh));
+        }
+        else if (dist < _dijkstra[pos].dist) {
+            _dijkstra[pos] = (dist, _dijkstra[pos].neighbours);
+        } else return;
+
+        foreach (var nPos in _dijkstra[pos].neighbours)
+            CalculateDijkstra(nPos, dist + 1, false);
+
+        if (init) HighliteArea(_dijkstra.Keys);
     }
 
     private void MoveUnit(Vector3Int target)
     {
+        if (!_battleField.ContainsKey(target) || !_dijkstra.ContainsKey(target)) return;
+
+        Vector3Int oldPos = tilemap.WorldToCell(_characters[turn].transform.position);
+
+        _battleField[oldPos] = 0;
+        _battleField[target] = 1;
+
         List<Vector3> way = new List<Vector3>();
 
         way.Add(tilemap.CellToWorld(target));
 
         _characters[turn].SetWay(way);
-
-        EndTurn();
     }
 }
 

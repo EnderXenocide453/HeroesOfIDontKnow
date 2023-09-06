@@ -5,10 +5,13 @@ using UnityEngine;
 public class CharacterController : MonoBehaviour
 {
     public int ID;
-
     public Unit unit;
 
+    public delegate void CharacterEventHandler();
+    public event CharacterEventHandler onMoveEnd;
+
     private List<Vector3> _way;
+    private bool isMove = false;
 
     private void Start()
     {
@@ -23,13 +26,21 @@ public class CharacterController : MonoBehaviour
 
     public void SetWay(List<Vector3> way)
     {
+        if (isMove) return;
+
         _way = way;
+        isMove = true;
     }
 
     private void Move()
     {
-        if (_way.Count == 0)
+        if (!isMove) return;
+
+        if (_way.Count == 0) {
+            onMoveEnd?.Invoke();
+            isMove = false;
             return;
+        }
 
         transform.position = Vector3.Lerp(transform.position, _way[0], unit.speed);
         if (transform.position == _way[0])
@@ -109,7 +120,7 @@ public abstract class Unit
 
     private void Death()
     {
-        onDeath.Invoke();
+        onDeath?.Invoke();
     }
 }
 

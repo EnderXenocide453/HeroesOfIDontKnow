@@ -38,6 +38,8 @@ public class MapController : MonoBehaviour
     public GameObject unitPrefab;
     public SpawnInfo[] spawnQueue;
 
+    public int turn { get; private set; } = 0;
+
     private List<CharacterController> _characters;
     #endregion
 
@@ -47,6 +49,7 @@ public class MapController : MonoBehaviour
         InitiateMap();
 
         onMouseEnter += Highlite;
+        onMouseUp += MoveUnit;
     }
 
     // Update is called once per frame
@@ -55,6 +58,7 @@ public class MapController : MonoBehaviour
         CheckMouse();
     }
 
+    //Инициация карты и спавн персонажей
     private void InitiateMap()
     {
         tilemap.ClearAllTiles();
@@ -79,6 +83,7 @@ public class MapController : MonoBehaviour
         }
     }
 
+    #region Подсветка
     private void Highlite(Vector3Int coord)
     {
         highliteMap.ClearAllTiles();
@@ -95,6 +100,7 @@ public class MapController : MonoBehaviour
             highliteMap.SetTile(coord, highliteTile);
         }
     }
+    #endregion
 
     private void CheckMouse()
     {
@@ -108,7 +114,6 @@ public class MapController : MonoBehaviour
             onMouseUp?.Invoke(coordinate);
         } 
         if (coordinate != _activeCoord) {
-            Debug.Log(coordinate);
             onMouseEnter?.Invoke(coordinate);
             onMouseExit?.Invoke(_activeCoord);
         }
@@ -157,6 +162,22 @@ public class MapController : MonoBehaviour
     {
         for (int i = 0; i < _characters.Count; i++)
             _characters[i].ID = i;
+    }
+
+    private void EndTurn()
+    {
+        turn = (turn + 1) % _characters.Count;
+    }
+
+    private void MoveUnit(Vector3Int target)
+    {
+        List<Vector3> way = new List<Vector3>();
+
+        way.Add(tilemap.CellToWorld(target));
+
+        _characters[turn].SetWay(way);
+
+        EndTurn();
     }
 }
 

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SimpleTile
   m_EditorClassIdentifier: 
   m_Sprite: {fileID: 21300000, guid: b0ef7530f997af3429c10bac6b1f0489, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.5, g: 0.37763363, b: 0.23773584, a: 1}
   m_Transform:
     e00: 1
     e01: 0

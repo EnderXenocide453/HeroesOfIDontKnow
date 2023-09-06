@@ -5,6 +5,7 @@ using UnityEngine.Tilemaps;
 
 public class MapController : MonoBehaviour
 {
+    #region Карта
     //Карта хексов
     public Tilemap tilemap;
     public Tile normalTile;
@@ -15,26 +16,36 @@ public class MapController : MonoBehaviour
     //Параметры карты
     public Vector2Int mapSize;
 
-    //События взаимодействия с тайлами
-    public delegate void TileHandler(Vector3Int coord);
-    public event TileHandler onMouseEnter;
-    public event TileHandler onMouseExit;
-    public event TileHandler onMouseDown;
-    public event TileHandler onMouseUp;
-
-    //Выбранный тайл
-    private Vector3Int _activeCoord = Vector3Int.zero;
     //Поле боя
     /// <summary>
     /// 0-пустая клетка
     /// 1-препятствие
     /// </summary>
     private Dictionary<Vector3Int, int> _battleField;
+    //Выбранный тайл
+    private Vector3Int _activeCoord = Vector3Int.zero;
+    #endregion
+    #region События
+    //События взаимодействия с тайлами
+    public delegate void TileHandler(Vector3Int coord);
+    public event TileHandler onMouseEnter;
+    public event TileHandler onMouseExit;
+    public event TileHandler onMouseDown;
+    public event TileHandler onMouseUp;
+    #endregion
+
+    #region Войска
+    public GameObject unitPrefab;
+
+    private List<CharacterController> _characters;
+    #endregion
 
     // Start is called before the first frame update
     void Start()
     {
         InitiateMap();
+
+        AddUnit(new Knight(), Vector3Int.zero, 1);
 
         onMouseEnter += Highlite;
     }
@@ -60,6 +71,8 @@ public class MapController : MonoBehaviour
                 _battleField.Add(pos, 0);
             }
         }
+
+        _characters = new List<CharacterController>();
     }
 
     private void Highlite(Vector3Int coord)
@@ -97,5 +110,29 @@ public class MapController : MonoBehaviour
         }
 
         _activeCoord = coordinate;
+    }
+
+    private void AddUnit(Unit unit, Vector3Int pos, int count)
+    {
+        CharacterController character = Instantiate(unitPrefab, tilemap.CellToWorld(pos), Quaternion.identity).GetComponent<CharacterController>();
+
+        character.unit = unit;
+        character.count = count;
+
+        for (int i = 0; i < _characters.Count; i++)
+            if (_characters[i].unit.initiative < unit.initiative) { 
+                _characters.Insert(i, character);
+                UpdateIDs();
+                return;
+            }
+
+        _characters.Add(character);
+        UpdateIDs();
+    }
+
+    private void UpdateIDs()
+    {
+        for (int i = 0; i < _characters.Count; i++)
+            _characters[i].ID = i;
     }
 }

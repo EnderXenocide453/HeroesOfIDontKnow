@@ -4,8 +4,11 @@ using UnityEngine;
 
 public class CharacterController : MonoBehaviour
 {
-    public int ID;
+    public Vector3Int tilePos;
     public Unit unit;
+
+    //Какому игроку принадлежит
+    public int faction = 0;
 
     public delegate void CharacterEventHandler();
     public event CharacterEventHandler onMoveEnd;
@@ -14,14 +17,24 @@ public class CharacterController : MonoBehaviour
 
     private void Start()
     {
-        _way = new List<Vector3>();
-        unit = new Knight();
+        unit.onDamageDone += (object obj) => { Debug.Log(((int, int))obj); };
     }
 
     public void SetWay(List<Vector3> way)
     {
         _way = way;
         StartCoroutine(Move());
+    }
+
+    public void Attack()
+    {
+        //Проигрываем анимацию атаки
+    }
+
+    public void Death()
+    {
+        Destroy(gameObject);
+        //Анимация смерти
     }
 
     private IEnumerator Move()
@@ -43,6 +56,12 @@ public abstract class Unit
     //Скорость перемещения по карте
     public float speed = 2f;
 
+    //Дальняя ли атака
+    public bool isRange = false;
+
+    //ID
+    public int ID;
+
     # region Основные характеристики
     public int count = 1;
     public int distance;
@@ -56,7 +75,7 @@ public abstract class Unit
     #endregion
 
     #region События
-    public delegate void UnitEventHandler(object target = null);
+    public delegate void UnitEventHandler(object target);
     public event UnitEventHandler onDamageStart;
     public event UnitEventHandler onDamageDone;
     public event UnitEventHandler onHealStart;
@@ -110,7 +129,7 @@ public abstract class Unit
 
     private void Death()
     {
-        onDeath?.Invoke();
+        onDeath?.Invoke(ID);
     }
 }
 
@@ -128,6 +147,15 @@ public class Knight : Unit
         defense = 0.99f;
 
         InitStats();
+
+        onDamageDone += DecreaseDefense;
+    }
+
+    //Снижение защиты
+    private void DecreaseDefense(object obj)
+    {
+        if (defense > 0)
+            defense -= 0.33f;
     }
 }
 

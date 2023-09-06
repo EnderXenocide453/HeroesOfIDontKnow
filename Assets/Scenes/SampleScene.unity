@@ -556,16 +556,20 @@ MonoBehaviour:
   highliteTile: {fileID: 11400000, guid: c20ab105b8a850748828c2432631ee2b, type: 2}
   mapSize: {x: 15, y: 11}
   unitPrefab: {fileID: 2145221829068681742, guid: fd974bba9b8eb7f489230a5285528d0c, type: 3}
-  spawnQueue:
+  firstSpawnQueue:
   - name: 0
     count: 1
-    position: {x: 0, y: 0, z: 0}
+    position: {x: -7, y: 1, z: 0}
   - name: 0
     count: 1
-    position: {x: 0, y: 1, z: 0}
+    position: {x: -7, y: 0, z: 0}
+  secondSpawnQueue:
   - name: 0
     count: 1
-    position: {x: 0, y: 2, z: 0}
+    position: {x: 7, y: -1, z: 0}
+  - name: 0
+    count: 1
+    position: {x: 7, y: 0, z: 0}
 --- !u!156049354 &1815312202
 Grid:
   m_ObjectHideFlags: 0

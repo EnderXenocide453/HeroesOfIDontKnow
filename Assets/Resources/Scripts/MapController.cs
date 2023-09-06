@@ -21,10 +21,11 @@ public class MapController : MonoBehaviour
     /// 0-пустая клетка
     /// 1-препятствие
     /// </summary>
-    private Dictionary<Vector3Int, int> _battleField;
+    private Dictionary<Vector3Int, (bool isObstacle, List<Vector3Int> neighbours)> _battleField;
     //Выбранный тайл
     private Vector3Int _activeCoord = Vector3Int.zero;
     #endregion
+
     #region События
     //События взаимодействия с тайлами
     public delegate void TileHandler(Vector3Int coord);
@@ -36,13 +37,19 @@ public class MapController : MonoBehaviour
 
     #region Войска
     public GameObject unitPrefab;
-    public SpawnInfo[] spawnQueue;
+    //начальные войска первого игрока
+    public SpawnInfo[] firstSpawnQueue;
+    //начальные войска второго игрока
+    public SpawnInfo[] secondSpawnQueue;
 
     public int turn { get; private set; } = 0;
 
     private List<CharacterController> _characters;
-    private Dictionary<Vector3Int, (int dist, Vector3Int[] neighbours)> _dijkstra;
+    //Пути, найденные алгоритмом Дейкстры
+    private Dictionary<Vector3Int, int> _dijkstra;
+    private List<Vector3Int> _canAttack;
     private bool canCommand = false;
+    private int[] _factionAlive;
     #endregion
 
     // Start is called before the first frame update
@@ -53,7 +60,7 @@ public class MapController : MonoBehaviour
         StartTurn();
 
         //onMouseEnter += Highlite;
-        onMouseUp += MoveUnit;
+        onMouseUp += OnClick;
     }
 
     // Update is called once per frame
@@ -66,24 +73,44 @@ public class MapController : MonoBehaviour
     private void InitiateMap()
     {
         tilemap.ClearAllTiles();
-        _battleField = new Dictionary<Vector3Int, int>();
+        _battleField = new Dictionary<Vector3Int, (bool, List<Vector3Int>)>();
 
         Vector3Int offset = new Vector3Int(mapSize.x / 2, mapSize.y / 2, 0);
 
-        for (int i = 0; i < mapSize.x; i++) {
-            for (int j = 0; j < mapSize.y; j++) {
+        for (int j = 0; j < mapSize.y; j++) {
+            //Параметр сдвига по гексагональной сетке
+            int hexOffset = (j + 1) % 2;
+
+            for (int i = 0; i < mapSize.x; i++) {
                 Vector3Int pos = new Vector3Int(i, j, 0) - offset;
 
                 tilemap.SetTile(pos, normalTile);
-                _battleField.Add(pos, 0);
+
+                List<Vector3Int> neigh = new List<Vector3Int>()
+                {
+                    pos - new Vector3Int(1 - hexOffset, -1, 0),
+                    pos - new Vector3Int(0 - hexOffset, -1, 0),
+                    pos - new Vector3Int(1 - hexOffset, 1, 0),
+                    pos - new Vector3Int(0 - hexOffset, 1, 0),
+                    pos - new Vector3Int(1, 0, 0),
+                    pos - new Vector3Int(-1, 0, 0)
+                };
+
+                _battleField.Add(pos, (false, neigh));
             }
         }
 
         _characters = new List<CharacterController>();
 
-        foreach (var info in spawnQueue) {
+        _factionAlive = new int[] { 0, 0 };
+
+        foreach (var info in firstSpawnQueue) {
             Unit unit = Spawner.SpawnUnit(info.name, info.count);
-            AddUnit(unit, info.position);
+            AddUnit(unit, info.position, 0);
+        }
+        foreach (var info in secondSpawnQueue) {
+            Unit unit = Spawner.SpawnUnit(info.name, info.count);
+            AddUnit(unit, info.position, 1);
         }
     }
 
@@ -125,9 +152,9 @@ public class MapController : MonoBehaviour
         _activeCoord = coordinate;
     }
 
-    private void AddUnit(Unit unit, Vector3Int pos)
+    private void AddUnit(Unit unit, Vector3Int pos, int faction)
     {
-        if (_battleField[pos] == 1) {
+        if (_battleField[pos].isObstacle) {
             pos = FindEmpty();
             if (pos.z == 1) return;
         }
@@ -145,15 +172,38 @@ public class MapController : MonoBehaviour
 
         _characters.Add(character);
         UpdateIDs();
-        _battleField[pos] = 1;
+        _battleField[pos] = (true, _battleField[pos].neighbours);
 
         character.onMoveEnd += EndTurn;
         character.unit.onDeath += RemoveUnit;
+        character.tilePos = pos;
+        character.faction = faction;
+
+        _factionAlive[faction]++;
     }
 
     private void RemoveUnit(object id)
     {
+        Debug.Log("Removed");
+
+        CharacterController character = _characters[(int)id];
+
+        _battleField[character.tilePos] = (false, _battleField[character.tilePos].neighbours);
+        _factionAlive[character.faction]--;
+        if (_factionAlive[character.faction] == 0) Victory(1 - character.faction + 1);
+
+        _characters[(int)id].Death();
         _characters.RemoveAt((int)id);
+        UpdateIDs();
+
+        turn--;
+        EndTurn();
+    }
+
+    private void Victory(int faction)
+    {
+        //Выводим табличку
+        Debug.Log(string.Format("Игрок {0} победил!", faction));
     }
 
     private Vector3Int FindEmpty()
@@ -163,7 +213,7 @@ public class MapController : MonoBehaviour
         
         for (int x = 0; x < mapSize.x; x++)
             for (int y = 0; y < mapSize.y; y++)
-                if (_battleField[new Vector3Int(x, y, 0)] == 0) {
+                if (!_battleField[new Vector3Int(x, y, 0)].isObstacle) {
                     pos = new Vector3Int(x, y, 0);
                 }
 
@@ -173,7 +223,7 @@ public class MapController : MonoBehaviour
     private void UpdateIDs()
     {
         for (int i = 0; i < _characters.Count; i++)
-            _characters[i].ID = i;
+            _characters[i].unit.ID = i;
     }
 
     private void StartTurn()
@@ -190,63 +240,77 @@ public class MapController : MonoBehaviour
 
     private void CalculateDijkstra(Vector3Int pos, int dist, bool init)
     {
-        if (init) _dijkstra = new Dictionary<Vector3Int, (int, Vector3Int[])>();
+        if (init) {
+            _dijkstra = new Dictionary<Vector3Int, int>();
+            _canAttack = new List<Vector3Int>();
+        }
 
-        if (!_battleField.ContainsKey(pos) || dist > _characters[turn].unit.distance || (_battleField[pos] == 1 && !init))
+        //Добавляем ячейку в возможные для атаки
+        if (!_canAttack.Contains(pos))
+            _canAttack.Add(pos);
+
+        if (!_battleField.ContainsKey(pos) || dist > _characters[turn].unit.distance || (_battleField[pos].isObstacle && !init))
             return;
 
         //Параметр сдвига по гексагональной сетке
         int offset = Mathf.Abs(pos.y % 2);
 
         if (!_dijkstra.ContainsKey(pos)) {
-            Vector3Int[] neigh = new Vector3Int[]
-            {
-                pos - new Vector3Int(1 - offset, -1, 0),
-                pos - new Vector3Int(1, 0, 0),
-                pos - new Vector3Int(1 - offset, 1, 0),
-                pos - new Vector3Int(0 - offset, 1, 0),
-                pos - new Vector3Int(0 - offset, -1, 0),
-                pos - new Vector3Int(-1, 0, 0)
-            };
-
-            _dijkstra.Add(pos, (dist, neigh));
+            _dijkstra.Add(pos, dist);
         }
-        else if (dist < _dijkstra[pos].dist) {
-            _dijkstra[pos] = (dist, _dijkstra[pos].neighbours);
+        else if (dist < _dijkstra[pos]) {
+            _dijkstra[pos] = dist;
         } else return;
 
-        foreach (var nPos in _dijkstra[pos].neighbours)
+        foreach (var nPos in _battleField[pos].neighbours)
             CalculateDijkstra(nPos, dist + 1, false);
 
         if (init) HighliteArea(_dijkstra.Keys);
     }
 
+    private void OnClick(Vector3Int target)
+    {
+        if (!canCommand) return;
+
+        if (_dijkstra.ContainsKey(target)) 
+            MoveUnit(target);
+        else if (_characters[turn].unit.isRange || _canAttack.Contains(target))
+            foreach (var character in _characters)
+                if (character.tilePos == target) {
+                    if (character.faction == _characters[turn].faction) return;
+
+                    InitAttack(character);
+                }
+
+    }
+    
     private void MoveUnit(Vector3Int target)
     {
-        if (!canCommand || !_battleField.ContainsKey(target) || !_dijkstra.ContainsKey(target)) return;
+        if (!_battleField.ContainsKey(target)) return;
 
         canCommand = false;
 
         Vector3Int oldPos = tilemap.WorldToCell(_characters[turn].transform.position);
 
-        _battleField[oldPos] = 0;
-        _battleField[target] = 1;
+        _battleField[oldPos] = (false, _battleField[oldPos].neighbours);
+        _battleField[target] = (true, _battleField[target].neighbours);
+        _characters[turn].tilePos = target;
 
         List<Vector3> way = new List<Vector3>();
 
-        int minDist = _dijkstra[target].dist;
+        int minDist = _dijkstra[target];
 
         //Самой последней точкой является сама цель перемещения
         way.Add(tilemap.CellToWorld(target));
 
         while (minDist > 0) {
-            Vector3Int[] neighbours = _dijkstra[target].neighbours;
+            List<Vector3Int> neighbours = _battleField[target].neighbours;
 
             foreach (var pos in neighbours) {
                 if (!_dijkstra.ContainsKey(pos)) continue;
 
-                if (_dijkstra[pos].dist < minDist) {
-                    minDist = _dijkstra[pos].dist;
+                if (_dijkstra[pos] < minDist) {
+                    minDist = _dijkstra[pos];
                     target = pos;
                 }
             }
@@ -255,6 +319,47 @@ public class MapController : MonoBehaviour
         }
 
         _characters[turn].SetWay(way);
+    }
+
+    private void InitAttack(CharacterController unit)
+    {
+        CharacterController self = _characters[turn];
+
+        if (self.unit.isRange) {
+
+        } else {
+            int minDist = int.MaxValue;
+            Vector3Int target = Vector3Int.zero;
+
+            //Поиск ближайшей к врагу точки
+            foreach (var pos in _battleField[unit.tilePos].neighbours) {
+                if (_dijkstra.ContainsKey(pos) && minDist > _dijkstra[pos]) {
+                    minDist = _dijkstra[pos];
+                    target = pos;
+                }
+            }
+
+            //Если таковых нет, выходим
+            if (target == Vector3Int.zero) return;
+
+            MoveUnit(target);
+
+            void Attack()
+            {
+                Debug.Log("attack");
+
+                self.Attack();
+                SetDamage(unit.unit, (int)Mathf.Lerp(self.unit.minDmg, self.unit.maxDmg, Random.Range(0.0f, 1.0f)));
+                self.onMoveEnd -= Attack;
+            }
+            self.onMoveEnd += Attack;
+        }
+    }
+
+    private void SetDamage(Unit unit, int amount)
+    {
+        Debug.Log(amount);
+        unit.GetDamage(amount);
     }
 }
 

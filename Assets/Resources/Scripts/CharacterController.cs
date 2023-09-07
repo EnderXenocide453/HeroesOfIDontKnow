@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 public class CharacterController : MonoBehaviour
@@ -13,17 +14,19 @@ public class CharacterController : MonoBehaviour
     public delegate void CharacterEventHandler();
     public event CharacterEventHandler onMoveEnd;
 
-    private List<Vector3> _way;
+    //Индикаторы
+    public TMP_Text countField;
 
     private void Start()
     {
-        unit.onDamageDone += (object obj) => { Debug.Log(((int, int))obj); };
+        countField.text = unit.count.ToString();
+        unit.onDamageDone += (object obj) => { countField.text = unit.count.ToString(); };
+        unit.onHealDone += (object obj) => { countField.text = unit.count.ToString(); };
     }
 
     public void SetWay(List<Vector3> way)
     {
-        _way = way;
-        StartCoroutine(Move());
+        StartCoroutine(Move(way));
     }
 
     public void Attack()
@@ -37,12 +40,12 @@ public class CharacterController : MonoBehaviour
         //Анимация смерти
     }
 
-    private IEnumerator Move()
+    private IEnumerator Move(List<Vector3> way)
     {
-        while (_way.Count > 0) {
-            transform.position = Vector3.MoveTowards(transform.position, _way[0], unit.speed * Time.deltaTime);
-            if (transform.position == _way[0])
-                _way.RemoveAt(0);
+        while (way.Count > 0) {
+            transform.position = Vector3.MoveTowards(transform.position, way[0], unit.speed * Time.deltaTime);
+            if (transform.position == way[0])
+                way.RemoveAt(0);
 
             yield return new WaitForEndOfFrame();
         }
@@ -89,7 +92,7 @@ public abstract class Unit
         _curHealth = health;
     }
 
-    public void GetDamage(int dmg)
+    public void DealDamage(int dmg)
     {
         onDamageStart?.Invoke(dmg);
 
@@ -109,6 +112,11 @@ public abstract class Unit
         }
 
         onDamageDone?.Invoke((dmg, deadCount));
+    }
+
+    public int GetRandomDamage()
+    {
+        return (int)Mathf.Lerp(minDmg * count, maxDmg * count, Random.Range(0.0f, 1.0f));
     }
 
     public void GetHeal(int amount, bool resurrect = false)

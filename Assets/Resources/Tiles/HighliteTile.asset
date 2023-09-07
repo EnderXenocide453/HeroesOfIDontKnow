@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: HighliteTile
   m_EditorClassIdentifier: 
   m_Sprite: {fileID: 21300000, guid: b0ef7530f997af3429c10bac6b1f0489, type: 3}
-  m_Color: {r: 0.13745102, g: 0.6226415, b: 0.15722024, a: 0.5529412}
+  m_Color: {r: 0.18462192, g: 0.62352943, b: 0.13725491, a: 1}
   m_Transform:
     e00: 1
     e01: 0

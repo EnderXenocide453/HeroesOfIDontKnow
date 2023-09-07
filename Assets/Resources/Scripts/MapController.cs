@@ -326,7 +326,7 @@ public class MapController : MonoBehaviour
         CharacterController self = _characters[turn];
 
         if (self.unit.isRange) {
-
+            Attack();
         } else {
             int minDist = int.MaxValue;
             Vector3Int target = Vector3Int.zero;
@@ -343,23 +343,23 @@ public class MapController : MonoBehaviour
             if (target == Vector3Int.zero) return;
 
             MoveUnit(target);
-
-            void Attack()
-            {
-                Debug.Log("attack");
-
-                self.Attack();
-                SetDamage(unit.unit, (int)Mathf.Lerp(self.unit.minDmg, self.unit.maxDmg, Random.Range(0.0f, 1.0f)));
-                self.onMoveEnd -= Attack;
-            }
             self.onMoveEnd += Attack;
+        }
+
+        void Attack()
+        {
+            Debug.Log("attack");
+
+            self.Attack();
+            SetDamage(unit.unit, self.unit.GetRandomDamage());
+            self.onMoveEnd -= Attack;
         }
     }
 
     private void SetDamage(Unit unit, int amount)
     {
         Debug.Log(amount);
-        unit.GetDamage(amount);
+        unit.DealDamage(amount);
     }
 }
 

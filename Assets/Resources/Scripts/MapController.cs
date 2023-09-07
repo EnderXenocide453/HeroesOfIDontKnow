@@ -57,6 +57,9 @@ public class MapController : MonoBehaviour
     private List<Vector3Int> _canAttack;
     private bool canCommand = false;
     private int[] _factionAlive;
+
+    private bool _isAbilityActive;
+    private Vector3Int[] _abilityArea;
     #endregion
 
     // Start is called before the first frame update
@@ -66,7 +69,7 @@ public class MapController : MonoBehaviour
 
         StartTurn();
 
-        //onMouseEnter += Highlite;
+        onMouseEnter += Highlite;
         onMouseUp += OnClick;
     }
 
@@ -165,25 +168,25 @@ public class MapController : MonoBehaviour
         foreach (var nPos in _battleField[pos].neighbours)
             CalculateDijkstra(nPos, dist + 1, false);
 
-        if (init) HighliteArea(_dijkstra.Keys);
+        if (init) HighliteArea(_dijkstra.Keys, Vector3Int.zero);
     }
     #endregion
 
     #region Подсветка
-    private void Highlite(Vector3Int coord)
+    private void Highlite(Vector3Int pos)
     {
-        highliteMap.ClearAllTiles();
+        if (!_isAbilityActive) return;
 
-        highliteMap.SetTile(coord, highliteTile);
-        highliteMap.RefreshAllTiles();
+        HighliteArea(_abilityArea, pos);
     }
 
-    private void HighliteArea(IEnumerable<Vector3Int> coords)
+    private void HighliteArea(IEnumerable<Vector3Int> area, Vector3Int origin)
     {
         highliteMap.ClearAllTiles();
 
-        foreach(var coord in coords) {
-            highliteMap.SetTile(coord, highliteTile);
+        foreach(var pos in area) {
+            int x = Mathf.Abs((origin.y) % 2) & Mathf.Abs(pos.y % 2);
+            highliteMap.SetTile(pos + origin + Vector3Int.right * x, highliteTile);
         }
     }
     #endregion
@@ -288,6 +291,13 @@ public class MapController : MonoBehaviour
 
     private void StartTurn(bool reapeat = false)
     {
+        //Если есть абилка, активируем кнопку
+        if (_characters[turn].unit.abilityData.type != AbilityType.None) {
+            abilityBtn.gameObject.SetActive(true);
+        } else {
+            abilityBtn.gameObject.SetActive(false);
+        }
+
         canCommand = true;
         CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
 
@@ -442,6 +452,17 @@ public class MapController : MonoBehaviour
     {
         Application.Quit();
     }
+
+    public void UseAttackAbility()
+    {
+        _isAbilityActive = !_isAbilityActive;
+
+        if (_isAbilityActive)
+            _abilityArea = _characters[turn].unit.abilityData.area;
+        else {
+            HighliteArea(_dijkstra.Keys, Vector3Int.zero);
+        }
+    }
     #endregion
 }
 
@@ -474,6 +495,7 @@ public class SpawnInfo
 
 public enum AbilityType
 {
+    None,
     Attack,
     Heal
 }

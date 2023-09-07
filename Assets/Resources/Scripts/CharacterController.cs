@@ -74,8 +74,7 @@ public abstract class Unit
     public int ID;
 
     //Активная способность
-    public delegate void AbilityHandler(AbilityType type, IEnumerable<object> data);
-    public AbilityHandler ability;
+    public (AbilityType type, Vector3Int[] area, int amount) abilityData;
 
     # region Основные характеристики
     public string name;
@@ -201,6 +200,25 @@ public class Archer : Unit
         this.count = count;
 
         InitStats();
+
+        abilityData = (AbilityType.Attack,  
+            new Vector3Int[] //Список плиток в области атаки
+            {
+                new Vector3Int(0, 0, 0),
+                new Vector3Int(0, -1, 0),
+                new Vector3Int(0, -2, 0),
+                new Vector3Int(0, -3, 0),
+                new Vector3Int(0, -4, 0),
+                new Vector3Int(1, 0, 0),
+                new Vector3Int(1, -1, 0),
+                new Vector3Int(1, -2, 0),
+                new Vector3Int(1, -3, 0),
+                new Vector3Int(1, -4, 0),
+                new Vector3Int(-1, -1, 0),
+                new Vector3Int(-1, -3, 0)
+            },
+            GetRandomDamage() / 2 //Урон от способности
+        );
     }
 }
 

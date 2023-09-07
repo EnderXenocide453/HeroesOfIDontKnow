@@ -855,7 +855,7 @@ MonoBehaviour:
   secondSpawnQueue:
   - name: 3
     count: 50
-    position: {x: 7, y: 2, z: 0}
+    position: {x: 6, y: 2, z: 0}
   - name: 3
     count: 50
     position: {x: 7, y: 1, z: 0}
@@ -864,10 +864,13 @@ MonoBehaviour:
     position: {x: 7, y: -1, z: 0}
   - name: 3
     count: 50
-    position: {x: 7, y: -2, z: 0}
-  - name: 5
+    position: {x: 6, y: -2, z: 0}
+  - name: 4
     count: 1
-    position: {x: -4, y: 0, z: 0}
+    position: {x: 7, y: 0, z: 0}
+  - name: 5
+    count: 20
+    position: {x: 7, y: 5, z: 0}
 --- !u!156049354 &1815312202
 Grid:
   m_ObjectHideFlags: 0

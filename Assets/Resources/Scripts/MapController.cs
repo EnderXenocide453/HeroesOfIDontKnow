@@ -293,13 +293,15 @@ public class MapController : MonoBehaviour
     //Удаление юнита
     private void RemoveUnit(object id)
     {
-        Debug.Log("Removed");
-
         CharacterController character = _characters[(int)id];
+
+        Log(string.Format("{0} погибает", character.unit.name));
 
         _battleField[character.unit.tilePos] = (false, _battleField[character.unit.tilePos].neighbours);
         _factionAlive[character.unit.faction]--;
-        if (_factionAlive[character.unit.faction] == 0) Victory(1 - character.unit.faction + 1);
+
+        if (_factionAlive[character.unit.faction] == 0) 
+            Victory(1 - character.unit.faction + 1);
 
         _queue.Remove(_characters[(int)id]);
         _characters[(int)id].Death();
@@ -322,14 +324,20 @@ public class MapController : MonoBehaviour
     {
         if (!reapeat) {
             if (turn == 0) _queue = new List<CharacterController>(_characters);
-            Debug.Log(turn + " " + _queue.Count);
+            
             _curCharacter = _queue[turn];
             _turnRepeats = 0;
+            Log(string.Format("{0} ходит", _curCharacter.unit.name));
         } else {
             Log(string.Format("{0} ходит снова!", _curCharacter.unit.name));
             _turnRepeats++;
         }
         
+        if (_curCharacter.unit.isFrozen) {
+            Log(string.Format("{0} заморожен и пропускает ход", _curCharacter.unit.name));
+            InstantEndTurn();
+        }
+
         //Если есть абилка, активируем кнопку
         if (_curCharacter.unit.abilityData.type != AbilityType.None) {
             abilityBtn.gameObject.SetActive(true);
@@ -348,8 +356,6 @@ public class MapController : MonoBehaviour
         _isAbilityActive = false;
         _curCharacter.onMoveEnd -= EndTurn;
 
-        Log(_curCharacter.unit.name);
-
         bool repeat = !_curCharacter.unit.EndTurn(_turnRepeats);
 
         if (!repeat) turn = (turn + 1) % _queue.Count;
@@ -358,6 +364,7 @@ public class MapController : MonoBehaviour
 
     private void InstantEndTurn()
     {
+        _curCharacter.unit.EndTurn();
         turn = (turn + 1) % _queue.Count;
         StartTurn(false);
     }
@@ -529,7 +536,7 @@ public class MapController : MonoBehaviour
     public void SkipTurn()
     {
         //Особые действия при пропуске хода
-
+        Log(string.Format("{0} пропускает ход...", _curCharacter.unit.name));
         InstantEndTurn();
     }
 
@@ -577,6 +584,9 @@ public static class Spawner
                 break;
             case UnitName.Zombie:
                 unit = new Zombie(count);
+                break;
+            case UnitName.Ghost:
+                unit = new Ghost(count);
                 break;
         }
 

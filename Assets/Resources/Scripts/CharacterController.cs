@@ -77,7 +77,9 @@ public abstract class Unit
     public (AbilityType type, Vector3Int[] area, int amount) abilityData;
 
     //Разум под контролем?
-    private bool mindControl = false;
+    public bool mindControl { get; private set; } = false;
+    //Заморожен?
+    public bool isFrozen { get; private set; } = false;
 
     # region Основные характеристики
     public string name;
@@ -170,6 +172,10 @@ public abstract class Unit
             faction = 1 - faction;
         }
 
+        if (isFrozen) {
+            isFrozen = false;
+        }
+
         if (repeatCount >= maxRepeat)
             return true;
 
@@ -217,8 +223,17 @@ public abstract class Unit
 
     public void TakeControl()
     {
+        if (mindControl) return;
+
         mindControl = true;
         faction = 1 - faction;
+    }
+
+    public void Freeze()
+    {
+        if (isFrozen) return;
+
+        isFrozen = true;
     }
 
     public abstract void StartTurn();
@@ -395,9 +410,6 @@ public class Skeleton : Unit
 
 public class Zombie : Unit
 {
-    private bool _parent = false;
-    private int charge = 3;
-
     public Zombie(int count = 1)
     {
         name = "Зомби";
@@ -423,12 +435,41 @@ public class Zombie : Unit
 
 }
 
+public class Ghost : Unit
+{
+    public Ghost(int count = 1)
+    {
+        name = "Призрак";
+
+        health = 10;
+        distance = 6;
+        minMeleeDmg = 8;
+        maxMeleeDmg = 12;
+        initiative = 4;
+
+        defense = 0.1f;
+
+        this.count = count;
+
+        InitStats();
+    }
+
+    public override void Attack(Unit foe)
+    {
+        foe.Freeze();
+    }
+
+    public override void StartTurn() { }
+
+
+}
+
 public enum UnitName
 {
     Knight,
     Archer,
     Priest,
     Skeleton,
-    WeakSkeleton,
-    Zombie
+    Zombie,
+    Ghost
 }

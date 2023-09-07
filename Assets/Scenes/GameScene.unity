@@ -197,7 +197,7 @@ TilemapRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 2
   m_ChunkSize: {x: 32, y: 32, z: 32}
   m_ChunkCullingBounds: {x: 0, y: 0, z: 0}
   m_MaxChunkCount: 16
@@ -850,12 +850,21 @@ MonoBehaviour:
     count: 40
     position: {x: -7, y: 0, z: 0}
   secondSpawnQueue:
-  - name: 0
-    count: 30
+  - name: 3
+    count: 50
+    position: {x: 7, y: 2, z: 0}
+  - name: 3
+    count: 50
     position: {x: 7, y: 1, z: 0}
-  - name: 0
-    count: 30
+  - name: 3
+    count: 50
     position: {x: 7, y: -1, z: 0}
+  - name: 3
+    count: 50
+    position: {x: 7, y: -2, z: 0}
+  - name: 5
+    count: 1
+    position: {x: -4, y: 0, z: 0}
 --- !u!156049354 &1815312202
 Grid:
   m_ObjectHideFlags: 0

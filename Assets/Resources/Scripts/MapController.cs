@@ -52,6 +52,8 @@ public class MapController : MonoBehaviour
 
     private int _turnRepeats = 0;
     private List<CharacterController> _characters;
+    private List<CharacterController> _queue;
+    private CharacterController _curCharacter;
     //Пути, найденные алгоритмом Дейкстры
     private Dictionary<Vector3Int, int> _dijkstra;
     private List<Vector3Int> _canAttack;
@@ -153,7 +155,7 @@ public class MapController : MonoBehaviour
         if (!_canAttack.Contains(pos))
             _canAttack.Add(pos);
 
-        if (!_battleField.ContainsKey(pos) || dist > _characters[turn].unit.distance || (_battleField[pos].isObstacle && !init))
+        if (!_battleField.ContainsKey(pos) || dist > _curCharacter.unit.distance || (_battleField[pos].isObstacle && !init))
             return;
 
         //Параметр сдвига по гексагональной сетке
@@ -200,6 +202,7 @@ public class MapController : MonoBehaviour
     }
     #endregion
 
+    #region Мышь
     //Проверка состояния мыши
     private void CheckMouse()
     {
@@ -229,16 +232,18 @@ public class MapController : MonoBehaviour
             UseAbility();
         else if (_dijkstra.ContainsKey(target))
             MoveUnit(target);
-        else if (_characters[turn].unit.isRange || _canAttack.Contains(target))
+        else if (_curCharacter.unit.isRange || _canAttack.Contains(target))
             foreach (var character in _characters)
-                if (character.tilePos == target) {
-                    if (character.faction == _characters[turn].faction) return;
+                if (character.unit.tilePos == target) {
+                    if (character.unit.faction == _curCharacter.unit.faction) return;
 
                     InitAttack(character);
                 }
 
     }
+    #endregion
 
+    #region Операции со списком юнитов
     //Добавление юнита
     private void AddUnit(Unit unit, Vector3Int pos, int faction)
     {
@@ -250,21 +255,25 @@ public class MapController : MonoBehaviour
         CharacterController character = Instantiate(unitPrefab, tilemap.CellToWorld(pos), Quaternion.identity).GetComponent<CharacterController>();
 
         character.unit = unit;
+        bool added = false;
 
-        for (int i = 0; i < _characters.Count; i++)
+        for (int i = 0; i < _characters.Count; i++) {
             if (_characters[i].unit.initiative < unit.initiative) { 
                 _characters.Insert(i, character);
-                UpdateIDs();
-                return;
+                added = true;
+                break;
             }
+        }
 
-        _characters.Add(character);
+        if (!added) _characters.Add(character);
+
         UpdateIDs();
         _battleField[pos] = (true, _battleField[pos].neighbours);
 
         character.unit.onDeath += RemoveUnit;
-        character.tilePos = pos;
-        character.faction = faction;
+        character.unit.tilePos = pos;
+        character.unit.faction = faction;
+        character.unit.onSummon += SummonNear;
 
         character.unit.onDamageDone += (object obj) => {
             (int dmg, int death) = ((int, int))obj;
@@ -288,10 +297,11 @@ public class MapController : MonoBehaviour
 
         CharacterController character = _characters[(int)id];
 
-        _battleField[character.tilePos] = (false, _battleField[character.tilePos].neighbours);
-        _factionAlive[character.faction]--;
-        if (_factionAlive[character.faction] == 0) Victory(1 - character.faction + 1);
+        _battleField[character.unit.tilePos] = (false, _battleField[character.unit.tilePos].neighbours);
+        _factionAlive[character.unit.faction]--;
+        if (_factionAlive[character.unit.faction] == 0) Victory(1 - character.unit.faction + 1);
 
+        _queue.Remove(_characters[(int)id]);
         _characters[(int)id].Death();
         _characters.RemoveAt((int)id);
         UpdateIDs();
@@ -305,56 +315,66 @@ public class MapController : MonoBehaviour
         for (int i = 0; i < _characters.Count; i++)
             _characters[i].unit.ID = i;
     }
+    #endregion
 
+    #region Отслеживание ходов
     private void StartTurn(bool reapeat = false)
     {
+        if (!reapeat) {
+            if (turn == 0) _queue = new List<CharacterController>(_characters);
+            Debug.Log(turn + " " + _queue.Count);
+            _curCharacter = _queue[turn];
+            _turnRepeats = 0;
+        } else {
+            Log(string.Format("{0} ходит снова!", _curCharacter.unit.name));
+            _turnRepeats++;
+        }
+        
         //Если есть абилка, активируем кнопку
-        if (_characters[turn].unit.abilityData.type != AbilityType.None) {
+        if (_curCharacter.unit.abilityData.type != AbilityType.None) {
             abilityBtn.gameObject.SetActive(true);
         } else {
             abilityBtn.gameObject.SetActive(false);
         }
 
         canCommand = true;
-        CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
+        CalculateDijkstra(tilemap.WorldToCell(_curCharacter.transform.position), 0, true);
 
-        if (!reapeat) _turnRepeats = 0;
-        else {
-            Log(string.Format("{0} ходит снова!", _characters[turn].unit.name));
-            _turnRepeats++;
-        }
+        
     }
 
     private void EndTurn()
     {
         _isAbilityActive = false;
-        _characters[turn].onMoveEnd -= EndTurn;
+        _curCharacter.onMoveEnd -= EndTurn;
 
-        Log(_characters[turn].unit.name);
+        Log(_curCharacter.unit.name);
 
-        bool repeat = !_characters[turn].unit.EndTurn(_turnRepeats);
+        bool repeat = !_curCharacter.unit.EndTurn(_turnRepeats);
 
-        if (!repeat) turn = (turn + 1) % _characters.Count;
+        if (!repeat) turn = (turn + 1) % _queue.Count;
         StartTurn(repeat);
     }
 
     private void InstantEndTurn()
     {
-        turn = (turn + 1) % _characters.Count;
+        turn = (turn + 1) % _queue.Count;
         StartTurn(false);
     }
+    #endregion
 
+    #region Перемещение, атака и способности
     private void MoveUnit(Vector3Int target)
     {
         if (!_battleField.ContainsKey(target)) return;
 
         canCommand = false;
 
-        Vector3Int oldPos = tilemap.WorldToCell(_characters[turn].transform.position);
+        Vector3Int oldPos = tilemap.WorldToCell(_curCharacter.transform.position);
 
         _battleField[oldPos] = (false, _battleField[oldPos].neighbours);
         _battleField[target] = (true, _battleField[target].neighbours);
-        _characters[turn].tilePos = target;
+        _curCharacter.unit.tilePos = target;
 
         List<Vector3> way = new List<Vector3>();
 
@@ -378,14 +398,16 @@ public class MapController : MonoBehaviour
             way.Insert(0, tilemap.CellToWorld(target));
         }
 
-        _characters[turn].onMoveEnd += EndTurn;
+        _curCharacter.onMoveEnd += EndTurn;
 
-        _characters[turn].SetWay(way);
+        _curCharacter.SetWay(way);
     }
 
     private void InitAttack(CharacterController unit)
     {
-        CharacterController curUnit = _characters[turn];
+        CharacterController curUnit = _curCharacter;
+
+        _curCharacter.unit.Attack(unit.unit);
 
         if (curUnit.unit.isRange && !EnemyNear()) {
             RangeAttack();
@@ -395,7 +417,7 @@ public class MapController : MonoBehaviour
             Vector3Int target = Vector3Int.zero;
 
             //Поиск ближайшей к врагу точки
-            foreach (var pos in _battleField[unit.tilePos].neighbours) {
+            foreach (var pos in _battleField[unit.unit.tilePos].neighbours) {
                 if (_dijkstra.ContainsKey(pos) && minDist > _dijkstra[pos]) {
                     minDist = _dijkstra[pos];
                     target = pos;
@@ -429,7 +451,7 @@ public class MapController : MonoBehaviour
         bool EnemyNear()
         {
             foreach (var item in _characters)
-                if (item.faction != curUnit.faction && _battleField[curUnit.tilePos].neighbours.Contains(item.tilePos))
+                if (item.unit.faction != curUnit.unit.faction && _battleField[curUnit.unit.tilePos].neighbours.Contains(item.unit.tilePos))
                     return true;
 
             return false;
@@ -438,21 +460,27 @@ public class MapController : MonoBehaviour
 
     private void UseAbility()
     {
-        var data = _characters[turn].unit.abilityData;
+        var data = _curCharacter.unit.abilityData;
 
         Log("AAAAAA");
+        List<Unit> heap = new List<Unit>();
 
         switch (data.type) {
             case AbilityType.Attack:
-                foreach (var unit in _characters) {
-                    if (_abilityReadyArea.Contains(unit.tilePos))
-                        SetDamage(unit.unit, data.amount);
-                }
+                //добавляем в кучу
+                foreach (var unit in _characters)
+                    if (_abilityReadyArea.Contains(unit.unit.tilePos))
+                        heap.Add(unit.unit);
+
+                //наносим урон только тем, кто был на месте атаки до её использования
+                for (int i = 0; i < heap.Count; i++)
+                    SetDamage(heap[i], _curCharacter.unit.abilityData.amount);
+
                 EndTurn();
                 break;
             case AbilityType.Heal:
                 foreach (var unit in _characters) {
-                    if (_abilityReadyArea.Contains(unit.tilePos))
+                    if (_abilityReadyArea.Contains(unit.unit.tilePos))
                         unit.unit.GetHeal(data.amount, true);
                 }
                 EndTurn();
@@ -464,6 +492,26 @@ public class MapController : MonoBehaviour
     {
         unit.DealDamage(amount);
     }
+
+    private void SummonNear(object obj)
+    {
+        (Unit unit, Unit parent) = ((Unit, Unit))obj;
+
+        StartCoroutine(SummonCoroutine(unit, parent));
+    }
+
+    private IEnumerator SummonCoroutine(Unit unit, Unit parent)
+    {
+        yield return new WaitForEndOfFrame();
+
+        foreach (Vector3Int pos in _battleField[parent.tilePos].neighbours) {
+            if (_battleField.ContainsKey(pos) && !_battleField[pos].isObstacle) {
+                AddUnit(unit, pos, parent.faction);
+                break;
+            }
+        }
+    }
+    #endregion
 
     //Регистрация победы
     private void Victory(int faction)
@@ -500,7 +548,7 @@ public class MapController : MonoBehaviour
         _isAbilityActive = !_isAbilityActive;
 
         if (_isAbilityActive)
-            _abilityArea = _characters[turn].unit.abilityData.area;
+            _abilityArea = _curCharacter.unit.abilityData.area;
         else {
             HighlightArea(_dijkstra.Keys, Vector3Int.zero);
         }
@@ -520,6 +568,12 @@ public static class Spawner
                 break;
             case UnitName.Archer:
                 unit = new Archer(count);
+                break;
+            case UnitName.Skeleton:
+                unit = new Skeleton(count);
+                break;
+            case UnitName.Zombie:
+                unit = new Zombie(count);
                 break;
         }
 

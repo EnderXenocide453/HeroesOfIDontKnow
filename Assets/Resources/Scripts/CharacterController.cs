@@ -5,11 +5,7 @@ using UnityEngine;
 
 public class CharacterController : MonoBehaviour
 {
-    public Vector3Int tilePos;
     public Unit unit;
-
-    //Какому игроку принадлежит
-    public int faction = 0;
 
     public delegate void CharacterEventHandler();
     public event CharacterEventHandler onMoveEnd;
@@ -24,7 +20,7 @@ public class CharacterController : MonoBehaviour
         countField.text = unit.count.ToString();
         nameField.text = unit.name;
 
-        GetComponent<SpriteRenderer>().color = new Color(1 - faction * 0.2f, 1, 1 - 0.2f * (1 - faction));
+        GetComponent<SpriteRenderer>().color = new Color(1 - unit.faction * 0.2f, 1, 1 - 0.2f * (1 - unit.faction));
 
         unit.onDamageDone += (object obj) => { countField.text = unit.count.ToString(); };
         unit.onHealDone += (object obj) => { countField.text = unit.count.ToString(); };
@@ -66,6 +62,10 @@ public abstract class Unit
 {
     //Скорость перемещения по карте
     public float speed = 2f;
+    public Vector3Int tilePos;
+
+    //Какому игроку принадлежит
+    public int faction = 0;
 
     //Дальняя ли атака
     public bool isRange = false;
@@ -75,6 +75,9 @@ public abstract class Unit
 
     //Активная способность
     public (AbilityType type, Vector3Int[] area, int amount) abilityData;
+
+    //Разум под контролем?
+    private bool mindControl = false;
 
     # region Основные характеристики
     public string name;
@@ -104,6 +107,7 @@ public abstract class Unit
     public event UnitEventHandler onHealDone;
     public event UnitEventHandler onDeath;
     public event UnitEventHandler onTurnEnds;
+    public event UnitEventHandler onSummon;
     #endregion
 
     protected void InitStats()
@@ -123,7 +127,7 @@ public abstract class Unit
         int deadCount = 0;
 
         if (_curHealth <= 0) {
-            deadCount = Mathf.Abs(_curHealth / health) + 1;
+            deadCount = Mathf.Clamp(Mathf.Abs(_curHealth / health) + 1, 1, count);
             count -= deadCount;
 
             if (count < 1) Death();
@@ -166,6 +170,11 @@ public abstract class Unit
 
     public bool EndTurn(int repeatCount = 0)
     {
+        if (mindControl) {
+            mindControl = false;
+            faction = 1 - faction;
+        }
+
         if (repeatCount >= maxRepeat)
             return true;
 
@@ -175,10 +184,51 @@ public abstract class Unit
         return true;
     }
 
+    protected void OnSummon(Unit unit)
+    {
+        onSummon?.Invoke((unit, this));
+    }
+
     private void Death()
     {
         onDeath?.Invoke(ID);
     }
+
+    // override object.Equals
+    public override bool Equals(object obj)
+    {
+        //       
+        // See the full list of guidelines at
+        //   http://go.microsoft.com/fwlink/?LinkID=85237  
+        // and also the guidance for operator== at
+        //   http://go.microsoft.com/fwlink/?LinkId=85238
+        //
+
+        if (obj == null || GetType() != obj.GetType()) {
+            return false;
+        }
+
+        Unit other = (Unit)obj;
+        return ID == other.ID;
+    }
+
+    // override object.GetHashCode
+    public override int GetHashCode()
+    {
+        // TODO: write your implementation of GetHashCode() here
+        throw new System.NotImplementedException();
+        return base.GetHashCode();
+    }
+
+    public void TakeControl()
+    {
+        mindControl = true;
+        faction = 1 - faction;
+    }
+
+    public abstract void StartTurn();
+
+    public abstract void Attack(Unit foe);
 }
 
 public class Archer : Unit
@@ -189,7 +239,7 @@ public class Archer : Unit
         isRange = true;
 
         distance = 6;
-        health = 20;
+        health = 10;
 
         minRangeDmg = 6;
         maxRangeDmg = 15;
@@ -220,6 +270,10 @@ public class Archer : Unit
             GetRandomDamage() / 2 //Урон от способности
         );
     }
+
+    public override void Attack(Unit foe) { }
+
+    public override void StartTurn() { }
 }
 
 public class Knight : Unit
@@ -251,6 +305,87 @@ public class Knight : Unit
         if (defense > 0)
             defense -= 0.33f;
     }
+
+    public override void Attack(Unit foe) { }
+
+    public override void StartTurn() { }
+}
+
+public class Skeleton : Unit
+{
+    private bool _parent = false;
+    private int charge = 3;
+
+    public Skeleton(int count = 1, bool parent = true, float quality = 1)
+    {
+        name = "Скелет";
+
+        health = Mathf.CeilToInt(quality * 6);
+        distance = 3;
+        minMeleeDmg = Mathf.CeilToInt(quality * 6);
+        maxMeleeDmg = Mathf.CeilToInt(quality * 6);
+        initiative = Mathf.CeilToInt(quality * 6);
+
+        this.count = count;
+
+        InitStats();
+
+        _parent = parent;
+        onDamageDone += Summon;
+    }
+
+    new public bool EndTurn(int repeatCount = 0)
+    {
+        if (charge < 3)
+            charge++;
+
+        return base.EndTurn(repeatCount);
+    }
+
+    public void Summon(object obj)
+    {
+        if (!_parent) return;
+
+        (int dmg, int count) = ((int, int))obj;
+        if (count > 0) {
+            OnSummon(new Skeleton(count, false, 0.33f * charge));
+            charge = 1;
+        }
+    }
+
+    public override void Attack(Unit foe) { }
+
+    public override void StartTurn() { }
+}
+
+public class Zombie : Unit
+{
+    private bool _parent = false;
+    private int charge = 3;
+
+    public Zombie(int count = 1)
+    {
+        name = "Зомби";
+
+        health = 3000;
+        distance = 2;
+        minMeleeDmg = 0;
+        maxMeleeDmg = 0;
+        initiative = 4;
+
+        this.count = count;
+
+        InitStats();
+    }
+
+    public override void Attack(Unit foe)
+    {
+        foe.TakeControl();
+    }
+
+    public override void StartTurn() { }
+
+
 }
 
 public enum UnitName

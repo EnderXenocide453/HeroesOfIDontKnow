@@ -489,7 +489,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 6
+  orthographic size: 7
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -514,7 +514,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 0, y: -1, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -744,13 +744,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Delegates:
-  - eventID: 4
+  - eventID: 3
     callback:
       m_PersistentCalls:
         m_Calls:
         - m_Target: {fileID: 1815312201}
           m_TargetAssemblyTypeName: MapController, Assembly-CSharp
-          m_MethodName: UseAttackAbility
+          m_MethodName: ToggleAbility
           m_Mode: 1
           m_Arguments:
             m_ObjectArgument: {fileID: 0}
@@ -832,8 +832,8 @@ MonoBehaviour:
   logField: {fileID: 1145891292530372577}
   tilemap: {fileID: 439374751}
   normalTile: {fileID: 11400000, guid: 4bb0f7e62302aa841a04b2d75cf0f0b1, type: 2}
-  highliteMap: {fileID: 327006082}
-  highliteTile: {fileID: 11400000, guid: c20ab105b8a850748828c2432631ee2b, type: 2}
+  highlightMap: {fileID: 327006082}
+  highlightTile: {fileID: 11400000, guid: c20ab105b8a850748828c2432631ee2b, type: 2}
   mapSize: {x: 15, y: 11}
   unitPrefab: {fileID: 2145221829068681742, guid: fd974bba9b8eb7f489230a5285528d0c, type: 3}
   firstSpawnQueue:
@@ -847,7 +847,7 @@ MonoBehaviour:
     count: 20
     position: {x: -7, y: -1, z: 0}
   - name: 1
-    count: 20
+    count: 40
     position: {x: -7, y: 0, z: 0}
   secondSpawnQueue:
   - name: 0
@@ -1144,7 +1144,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3, y: 3, z: 1}
+  m_LocalScale: {x: 5, y: 5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}

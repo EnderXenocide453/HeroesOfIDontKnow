@@ -16,8 +16,8 @@ public class MapController : MonoBehaviour
     public Tilemap tilemap;
     public Tile normalTile;
     //Карта подсветки хексов
-    public Tilemap highliteMap;
-    public Tile highliteTile;
+    public Tilemap highlightMap;
+    public Tile highlightTile;
 
     //Параметры карты
     public Vector2Int mapSize;
@@ -60,6 +60,7 @@ public class MapController : MonoBehaviour
 
     private bool _isAbilityActive;
     private Vector3Int[] _abilityArea;
+    private List<Vector3Int> _abilityReadyArea;
     #endregion
 
     // Start is called before the first frame update
@@ -69,8 +70,8 @@ public class MapController : MonoBehaviour
 
         StartTurn();
 
-        onMouseEnter += Highlite;
-        onMouseUp += OnClick;
+        onMouseEnter += CalculateAbilityArea;
+        onMouseDown += OnClick;
     }
 
     // Update is called once per frame
@@ -168,25 +169,33 @@ public class MapController : MonoBehaviour
         foreach (var nPos in _battleField[pos].neighbours)
             CalculateDijkstra(nPos, dist + 1, false);
 
-        if (init) HighliteArea(_dijkstra.Keys, Vector3Int.zero);
+        if (init) HighlightArea(_dijkstra.Keys, Vector3Int.zero);
     }
     #endregion
 
     #region Подсветка
-    private void Highlite(Vector3Int pos)
+    private void CalculateAbilityArea(Vector3Int pos)
     {
         if (!_isAbilityActive) return;
 
-        HighliteArea(_abilityArea, pos);
+        _abilityReadyArea = new List<Vector3Int>();
+
+        foreach (var coord in _abilityArea) {
+            int x = Mathf.Abs((pos.y) % 2) & Mathf.Abs(coord.y % 2);
+            Vector3Int curPos = coord + pos + Vector3Int.right * x;
+            if (_battleField.ContainsKey(curPos))
+                _abilityReadyArea.Add(curPos);
+        }
+
+        HighlightArea(_abilityReadyArea, pos);
     }
 
-    private void HighliteArea(IEnumerable<Vector3Int> area, Vector3Int origin)
+    private void HighlightArea(IEnumerable<Vector3Int> area, Vector3Int origin)
     {
-        highliteMap.ClearAllTiles();
+        highlightMap.ClearAllTiles();
 
         foreach(var pos in area) {
-            int x = Mathf.Abs((origin.y) % 2) & Mathf.Abs(pos.y % 2);
-            highliteMap.SetTile(pos + origin + Vector3Int.right * x, highliteTile);
+            highlightMap.SetTile(pos, highlightTile);
         }
     }
     #endregion
@@ -216,7 +225,9 @@ public class MapController : MonoBehaviour
     {
         if (!canCommand) return;
 
-        if (_dijkstra.ContainsKey(target)) 
+        if (_isAbilityActive && _abilityReadyArea != null && _abilityReadyArea.Count > 0)
+            UseAbility();
+        else if (_dijkstra.ContainsKey(target))
             MoveUnit(target);
         else if (_characters[turn].unit.isRange || _canAttack.Contains(target))
             foreach (var character in _characters)
@@ -259,6 +270,12 @@ public class MapController : MonoBehaviour
             (int dmg, int death) = ((int, int))obj;
 
             Log(string.Format("{0} получает {1} урона. {2} {0} погибли", character.unit.name, dmg, death)); 
+        };
+
+        character.unit.onHealDone += (object obj) => {
+            (int dmg, int death) = ((int, int))obj;
+
+            Log(string.Format("{0} восполняет {1} здоровья. {2} {0} восстали из мертвых!", character.unit.name, dmg, death)); 
         };
 
         _factionAlive[faction]++;
@@ -310,6 +327,7 @@ public class MapController : MonoBehaviour
 
     private void EndTurn()
     {
+        _isAbilityActive = false;
         _characters[turn].onMoveEnd -= EndTurn;
 
         Log(_characters[turn].unit.name);
@@ -418,6 +436,30 @@ public class MapController : MonoBehaviour
         }
     }
 
+    private void UseAbility()
+    {
+        var data = _characters[turn].unit.abilityData;
+
+        Log("AAAAAA");
+
+        switch (data.type) {
+            case AbilityType.Attack:
+                foreach (var unit in _characters) {
+                    if (_abilityReadyArea.Contains(unit.tilePos))
+                        SetDamage(unit.unit, data.amount);
+                }
+                EndTurn();
+                break;
+            case AbilityType.Heal:
+                foreach (var unit in _characters) {
+                    if (_abilityReadyArea.Contains(unit.tilePos))
+                        unit.unit.GetHeal(data.amount, true);
+                }
+                EndTurn();
+                break;
+        }
+    }
+
     private void SetDamage(Unit unit, int amount)
     {
         unit.DealDamage(amount);
@@ -453,14 +495,14 @@ public class MapController : MonoBehaviour
         Application.Quit();
     }
 
-    public void UseAttackAbility()
+    public void ToggleAbility()
     {
         _isAbilityActive = !_isAbilityActive;
 
         if (_isAbilityActive)
             _abilityArea = _characters[turn].unit.abilityData.area;
         else {
-            HighliteArea(_dijkstra.Keys, Vector3Int.zero);
+            HighlightArea(_dijkstra.Keys, Vector3Int.zero);
         }
     }
     #endregion

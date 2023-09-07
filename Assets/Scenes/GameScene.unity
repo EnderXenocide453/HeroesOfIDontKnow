@@ -849,6 +849,9 @@ MonoBehaviour:
   - name: 1
     count: 40
     position: {x: -7, y: 0, z: 0}
+  - name: 2
+    count: 10
+    position: {x: -7, y: -5, z: 0}
   secondSpawnQueue:
   - name: 3
     count: 50

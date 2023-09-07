@@ -154,14 +154,9 @@ public abstract class Unit
         int resCount = 0;
 
         if (resurrect) {
-            resCount = _curHealth / health - 1;
+            resCount = Mathf.Clamp(_curHealth / health - 1, 0, _maxCount - count);
 
             count += resCount;
-
-            if (count > _maxCount) {
-                count = _maxCount;
-                _curHealth = health;
-            }
         }
         
         _curHealth = Mathf.Clamp(_curHealth, 1, health);
@@ -311,6 +306,47 @@ public class Knight : Unit
     public override void StartTurn() { }
 }
 
+public class Priest : Unit
+{
+    public Priest(int count = 1)
+    {
+        name = "Жрец";
+        isRange = true;
+
+        distance = 5;
+        health = 10;
+
+        minRangeDmg = 1;
+        maxRangeDmg = 5;
+
+        minMeleeDmg = 1;
+        maxMeleeDmg = 1;
+        initiative = 5;
+        this.count = count;
+
+        InitStats();
+
+        abilityData = (AbilityType.Heal,
+            new Vector3Int[] //Список плиток в области атаки
+            {
+                new Vector3Int(0, 0, 0),
+                new Vector3Int(0, -1, 0),
+                new Vector3Int(0, -2, 0),
+                new Vector3Int(1, 0, 0),
+                new Vector3Int(1, -1, 0),
+                new Vector3Int(1, -2, 0),
+                new Vector3Int(-1, -1, 0)
+            },
+            10 * count
+        );
+    }
+
+    public override void Attack(Unit foe) { }
+
+    public override void StartTurn() { }
+}
+
+
 public class Skeleton : Unit
 {
     private bool _parent = false;
@@ -331,7 +367,8 @@ public class Skeleton : Unit
         InitStats();
 
         _parent = parent;
-        onDamageDone += Summon;
+        if (_parent)
+            onDamageDone += Summon;
     }
 
     new public bool EndTurn(int repeatCount = 0)
@@ -343,9 +380,7 @@ public class Skeleton : Unit
     }
 
     public void Summon(object obj)
-    {
-        if (!_parent) return;
-
+    {        
         (int dmg, int count) = ((int, int))obj;
         if (count > 0) {
             OnSummon(new Skeleton(count, false, 0.33f * charge));

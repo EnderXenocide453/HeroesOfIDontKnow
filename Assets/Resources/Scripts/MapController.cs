@@ -569,6 +569,9 @@ public static class Spawner
             case UnitName.Archer:
                 unit = new Archer(count);
                 break;
+            case UnitName.Priest:
+                unit = new Priest(count);
+                break;
             case UnitName.Skeleton:
                 unit = new Skeleton(count);
                 break;

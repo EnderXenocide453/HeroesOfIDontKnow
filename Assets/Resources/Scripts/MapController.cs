@@ -1,10 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Tilemaps;
 
 public class MapController : MonoBehaviour
 {
+    //Кнопка особой способности
+    public EventTrigger abilityBtn;
+    //Бриф битвы
+    public TMPro.TMP_Text logField;
+
     #region Карта
     //Карта хексов
     public Tilemap tilemap;
@@ -44,6 +50,7 @@ public class MapController : MonoBehaviour
 
     public int turn { get; private set; } = 0;
 
+    private int _turnRepeats = 0;
     private List<CharacterController> _characters;
     //Пути, найденные алгоритмом Дейкстры
     private Dictionary<Vector3Int, int> _dijkstra;
@@ -69,6 +76,7 @@ public class MapController : MonoBehaviour
         CheckMouse();
     }
 
+    #region Манипуляции с картой
     //Инициация карты и спавн персонажей
     private void InitiateMap()
     {
@@ -114,98 +122,7 @@ public class MapController : MonoBehaviour
         }
     }
 
-    #region Подсветка
-    private void Highlite(Vector3Int coord)
-    {
-        highliteMap.ClearAllTiles();
-
-        highliteMap.SetTile(coord, highliteTile);
-        highliteMap.RefreshAllTiles();
-    }
-
-    private void HighliteArea(IEnumerable<Vector3Int> coords)
-    {
-        highliteMap.ClearAllTiles();
-
-        foreach(var coord in coords) {
-            highliteMap.SetTile(coord, highliteTile);
-        }
-    }
-    #endregion
-
-    private void CheckMouse()
-    {
-        Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector3Int coordinate = tilemap.WorldToCell(mouseWorldPos);
-        coordinate.z = 0;
-
-        if (Input.GetMouseButtonDown(0)) {
-            onMouseDown?.Invoke(coordinate);
-        } else if (Input.GetMouseButtonUp(0)) {
-            onMouseUp?.Invoke(coordinate);
-        } 
-        if (coordinate != _activeCoord) {
-            onMouseEnter?.Invoke(coordinate);
-            onMouseExit?.Invoke(_activeCoord);
-        }
-
-        _activeCoord = coordinate;
-    }
-
-    private void AddUnit(Unit unit, Vector3Int pos, int faction)
-    {
-        if (_battleField[pos].isObstacle) {
-            pos = FindEmpty();
-            if (pos.z == 1) return;
-        }
-        
-        CharacterController character = Instantiate(unitPrefab, tilemap.CellToWorld(pos), Quaternion.identity).GetComponent<CharacterController>();
-
-        character.unit = unit;
-
-        for (int i = 0; i < _characters.Count; i++)
-            if (_characters[i].unit.initiative < unit.initiative) { 
-                _characters.Insert(i, character);
-                UpdateIDs();
-                return;
-            }
-
-        _characters.Add(character);
-        UpdateIDs();
-        _battleField[pos] = (true, _battleField[pos].neighbours);
-
-        character.onMoveEnd += EndTurn;
-        character.unit.onDeath += RemoveUnit;
-        character.tilePos = pos;
-        character.faction = faction;
-
-        _factionAlive[faction]++;
-    }
-
-    private void RemoveUnit(object id)
-    {
-        Debug.Log("Removed");
-
-        CharacterController character = _characters[(int)id];
-
-        _battleField[character.tilePos] = (false, _battleField[character.tilePos].neighbours);
-        _factionAlive[character.faction]--;
-        if (_factionAlive[character.faction] == 0) Victory(1 - character.faction + 1);
-
-        _characters[(int)id].Death();
-        _characters.RemoveAt((int)id);
-        UpdateIDs();
-
-        turn--;
-        EndTurn();
-    }
-
-    private void Victory(int faction)
-    {
-        //Выводим табличку
-        Debug.Log(string.Format("Игрок {0} победил!", faction));
-    }
-
+    //Простой поиск свободной клетки
     private Vector3Int FindEmpty()
     {
         //Если место не будет найдено, то возвращается вектор с Z = 1
@@ -220,24 +137,7 @@ public class MapController : MonoBehaviour
         return pos;
     }
 
-    private void UpdateIDs()
-    {
-        for (int i = 0; i < _characters.Count; i++)
-            _characters[i].unit.ID = i;
-    }
-
-    private void StartTurn()
-    {
-        canCommand = true;
-        CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
-    }
-
-    private void EndTurn()
-    {
-        turn = (turn + 1) % _characters.Count;
-        StartTurn();
-    }
-
+    //Алгоритм Дейкстры
     private void CalculateDijkstra(Vector3Int pos, int dist, bool init)
     {
         if (init) {
@@ -267,7 +167,48 @@ public class MapController : MonoBehaviour
 
         if (init) HighliteArea(_dijkstra.Keys);
     }
+    #endregion
 
+    #region Подсветка
+    private void Highlite(Vector3Int coord)
+    {
+        highliteMap.ClearAllTiles();
+
+        highliteMap.SetTile(coord, highliteTile);
+        highliteMap.RefreshAllTiles();
+    }
+
+    private void HighliteArea(IEnumerable<Vector3Int> coords)
+    {
+        highliteMap.ClearAllTiles();
+
+        foreach(var coord in coords) {
+            highliteMap.SetTile(coord, highliteTile);
+        }
+    }
+    #endregion
+
+    //Проверка состояния мыши
+    private void CheckMouse()
+    {
+        Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector3Int coordinate = tilemap.WorldToCell(mouseWorldPos);
+        coordinate.z = 0;
+
+        if (Input.GetMouseButtonDown(0)) {
+            onMouseDown?.Invoke(coordinate);
+        } else if (Input.GetMouseButtonUp(0)) {
+            onMouseUp?.Invoke(coordinate);
+        } 
+        if (coordinate != _activeCoord) {
+            onMouseEnter?.Invoke(coordinate);
+            onMouseExit?.Invoke(_activeCoord);
+        }
+
+        _activeCoord = coordinate;
+    }
+
+    //Выбор действий при нажатии мыши
     private void OnClick(Vector3Int target)
     {
         if (!canCommand) return;
@@ -283,7 +224,98 @@ public class MapController : MonoBehaviour
                 }
 
     }
-    
+
+    //Добавление юнита
+    private void AddUnit(Unit unit, Vector3Int pos, int faction)
+    {
+        if (_battleField[pos].isObstacle) {
+            pos = FindEmpty();
+            if (pos.z == 1) return;
+        }
+        
+        CharacterController character = Instantiate(unitPrefab, tilemap.CellToWorld(pos), Quaternion.identity).GetComponent<CharacterController>();
+
+        character.unit = unit;
+
+        for (int i = 0; i < _characters.Count; i++)
+            if (_characters[i].unit.initiative < unit.initiative) { 
+                _characters.Insert(i, character);
+                UpdateIDs();
+                return;
+            }
+
+        _characters.Add(character);
+        UpdateIDs();
+        _battleField[pos] = (true, _battleField[pos].neighbours);
+
+        character.unit.onDeath += RemoveUnit;
+        character.tilePos = pos;
+        character.faction = faction;
+
+        character.unit.onDamageDone += (object obj) => {
+            (int dmg, int death) = ((int, int))obj;
+
+            Log(string.Format("{0} получает {1} урона. {2} {0} погибли", character.unit.name, dmg, death)); 
+        };
+
+        _factionAlive[faction]++;
+    }
+
+    //Удаление юнита
+    private void RemoveUnit(object id)
+    {
+        Debug.Log("Removed");
+
+        CharacterController character = _characters[(int)id];
+
+        _battleField[character.tilePos] = (false, _battleField[character.tilePos].neighbours);
+        _factionAlive[character.faction]--;
+        if (_factionAlive[character.faction] == 0) Victory(1 - character.faction + 1);
+
+        _characters[(int)id].Death();
+        _characters.RemoveAt((int)id);
+        UpdateIDs();
+
+        turn--;
+        InstantEndTurn();
+    }
+
+    private void UpdateIDs()
+    {
+        for (int i = 0; i < _characters.Count; i++)
+            _characters[i].unit.ID = i;
+    }
+
+    private void StartTurn(bool reapeat = false)
+    {
+        canCommand = true;
+        CalculateDijkstra(tilemap.WorldToCell(_characters[turn].transform.position), 0, true);
+
+        if (!reapeat) _turnRepeats = 0;
+        else {
+            Log(string.Format("{0} ходит снова!", _characters[turn].unit.name));
+            _turnRepeats++;
+        }
+    }
+
+    private void EndTurn()
+    {
+        _characters[turn].onMoveEnd -= EndTurn;
+
+        Log(_characters[turn].unit.name);
+
+        bool repeat = !_characters[turn].unit.EndTurn(_turnRepeats);
+
+        if (!repeat) turn = (turn + 1) % _characters.Count;
+        StartTurn(repeat);
+    }
+
+    private void InstantEndTurn()
+    {
+        turn = (turn + 1) % _characters.Count;
+        StartTurn(false);
+    }
+
     private void MoveUnit(Vector3Int target)
     {
         if (!_battleField.ContainsKey(target)) return;
@@ -318,15 +350,18 @@ public class MapController : MonoBehaviour
             way.Insert(0, tilemap.CellToWorld(target));
         }
 
+        _characters[turn].onMoveEnd += EndTurn;
+
         _characters[turn].SetWay(way);
     }
 
     private void InitAttack(CharacterController unit)
     {
-        CharacterController self = _characters[turn];
+        CharacterController curUnit = _characters[turn];
 
-        if (self.unit.isRange) {
-            Attack();
+        if (curUnit.unit.isRange && !EnemyNear()) {
+            RangeAttack();
+            EndTurn();
         } else {
             int minDist = int.MaxValue;
             Vector3Int target = Vector3Int.zero;
@@ -343,24 +378,71 @@ public class MapController : MonoBehaviour
             if (target == Vector3Int.zero) return;
 
             MoveUnit(target);
-            self.onMoveEnd += Attack;
+            curUnit.onMoveEnd += MeleeAttack;
         }
 
-        void Attack()
+        void MeleeAttack()
         {
-            Debug.Log("attack");
+            //Ближняя атака
 
-            self.Attack();
-            SetDamage(unit.unit, self.unit.GetRandomDamage());
-            self.onMoveEnd -= Attack;
+            curUnit.Attack();
+            SetDamage(unit.unit, curUnit.unit.GetRandomDamage());
+            curUnit.onMoveEnd -= MeleeAttack;
+        }
+
+        void RangeAttack()
+        {
+            //Дальняя атака
+
+            curUnit.Attack();
+            SetDamage(unit.unit, curUnit.unit.GetRandomDamage(true));
+        }
+
+        bool EnemyNear()
+        {
+            foreach (var item in _characters)
+                if (item.faction != curUnit.faction && _battleField[curUnit.tilePos].neighbours.Contains(item.tilePos))
+                    return true;
+
+            return false;
         }
     }
 
     private void SetDamage(Unit unit, int amount)
     {
-        Debug.Log(amount);
         unit.DealDamage(amount);
     }
+
+    //Регистрация победы
+    private void Victory(int faction)
+    {
+        //Выводим табличку
+        Debug.Log(string.Format("Игрок {0} победил!", faction));
+    }
+
+    private void Log(string msg)
+    {
+        logField.text = msg + "\n" + logField.text;
+    }
+
+    #region Методы для кнопок
+    public void SkipTurn()
+    {
+        //Особые действия при пропуске хода
+
+        InstantEndTurn();
+    }
+
+    public void Restart()
+    {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+    }
+
+    public void Exit()
+    {
+        Application.Quit();
+    }
+    #endregion
 }
 
 public static class Spawner
@@ -372,6 +454,9 @@ public static class Spawner
         switch (name) {
             case UnitName.Knight:
                 unit = new Knight(count);
+                break;
+            case UnitName.Archer:
+                unit = new Archer(count);
                 break;
         }
 
@@ -385,4 +470,10 @@ public class SpawnInfo
     public UnitName name;
     public int count = 1;
     public Vector3Int position;
+}
+
+public enum AbilityType
+{
+    Attack,
+    Heal
 }

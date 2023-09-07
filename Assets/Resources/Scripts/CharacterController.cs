@@ -14,12 +14,18 @@ public class CharacterController : MonoBehaviour
     public delegate void CharacterEventHandler();
     public event CharacterEventHandler onMoveEnd;
 
-    //Индикаторы
+    //Счетчик отряда
     public TMP_Text countField;
+    //Поле с именем
+    public TMP_Text nameField;
 
     private void Start()
     {
         countField.text = unit.count.ToString();
+        nameField.text = unit.name;
+
+        GetComponent<SpriteRenderer>().color = new Color(1 - faction * 0.2f, 1, 1 - 0.2f * (1 - faction));
+
         unit.onDamageDone += (object obj) => { countField.text = unit.count.ToString(); };
         unit.onHealDone += (object obj) => { countField.text = unit.count.ToString(); };
     }
@@ -49,7 +55,9 @@ public class CharacterController : MonoBehaviour
 
             yield return new WaitForEndOfFrame();
         }
-        
+
+        Debug.Log(onMoveEnd);
+
         onMoveEnd?.Invoke();
     }
 }
@@ -65,16 +73,28 @@ public abstract class Unit
     //ID
     public int ID;
 
+    //Активная способность
+    public delegate void AbilityHandler(AbilityType type, IEnumerable<object> data);
+    public AbilityHandler ability;
+
     # region Основные характеристики
+    public string name;
+
     public int count = 1;
     public int distance;
-    public int minDmg;
-    public int maxDmg;
+    public int minMeleeDmg;
+    public int maxMeleeDmg;
+    public int minRangeDmg;
+    public int maxRangeDmg;
     public int health;
     public float initiative;
     public float defense = 0;
 
+    public int maxRepeat = 0;
+    public float repeatChance = 0;
+
     private int _curHealth;
+    private int _maxCount;
     #endregion
 
     #region События
@@ -90,6 +110,7 @@ public abstract class Unit
     protected void InitStats()
     {
         _curHealth = health;
+        _maxCount = count;
     }
 
     public void DealDamage(int dmg)
@@ -114,8 +135,12 @@ public abstract class Unit
         onDamageDone?.Invoke((dmg, deadCount));
     }
 
-    public int GetRandomDamage()
+    public int GetRandomDamage(bool range = false)
     {
+        int minDmg = minMeleeDmg, maxDmg = maxMeleeDmg;
+
+        if (range) (minDmg, maxDmg) = (minRangeDmg, maxRangeDmg);
+
         return (int)Mathf.Lerp(minDmg * count, maxDmg * count, Random.Range(0.0f, 1.0f));
     }
 
@@ -129,10 +154,26 @@ public abstract class Unit
             resCount = _curHealth / health - 1;
 
             count += resCount;
+
+            if (count > _maxCount) {
+                count = _maxCount;
+                _curHealth = health;
+            }
         }
         
-        _curHealth = Mathf.Clamp(_curHealth, 0, health);
+        _curHealth = Mathf.Clamp(_curHealth, 1, health);
         onHealDone?.Invoke((amount, resCount));
+    }
+
+    public bool EndTurn(int repeatCount = 0)
+    {
+        if (repeatCount >= maxRepeat)
+            return true;
+
+        if (Random.Range(0.0f, 1.0f) < repeatChance)
+            return false;
+
+        return true;
     }
 
     private void Death()
@@ -141,18 +182,45 @@ public abstract class Unit
     }
 }
 
+public class Archer : Unit
+{
+    public Archer(int count = 1)
+    {
+        name = "Лучник";
+        isRange = true;
+
+        distance = 6;
+        health = 20;
+
+        minRangeDmg = 6;
+        maxRangeDmg = 15;
+
+        minMeleeDmg = 1;
+        maxMeleeDmg = 6;
+        initiative = 6;
+        this.count = count;
+
+        InitStats();
+    }
+}
+
 public class Knight : Unit
 {
     public Knight(int count = 1)
     {
+        name = "Рыцарь";
+
         distance = 5;
         health = 20;
-        minDmg = 6;
-        maxDmg = 10;
+        minMeleeDmg = 6;
+        maxMeleeDmg = 10;
         initiative = 4;
         this.count = count;
 
         defense = 0.99f;
+
+        maxRepeat = 1;
+        repeatChance = 0.45f;
 
         InitStats();
 
@@ -169,5 +237,10 @@ public class Knight : Unit
 
 public enum UnitName
 {
-    Knight
+    Knight,
+    Archer,
+    Priest,
+    Skeleton,
+    WeakSkeleton,
+    Zombie
 }

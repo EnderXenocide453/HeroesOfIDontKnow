@@ -10,6 +10,10 @@ public class MapController : MonoBehaviour
     public EventTrigger abilityBtn;
     //Бриф битвы
     public TMPro.TMP_Text logField;
+    //Победная табличка
+    public Transform winPanel;
+    //Обучающая табличка
+    public Transform tutorialPanel;
 
     #region Карта
     //Карта хексов
@@ -504,13 +508,6 @@ public class MapController : MonoBehaviour
     {
         (Unit unit, Unit parent) = ((Unit, Unit))obj;
 
-        StartCoroutine(SummonCoroutine(unit, parent));
-    }
-
-    private IEnumerator SummonCoroutine(Unit unit, Unit parent)
-    {
-        yield return new WaitForEndOfFrame();
-
         foreach (Vector3Int pos in _battleField[parent.tilePos].neighbours) {
             if (_battleField.ContainsKey(pos) && !_battleField[pos].isObstacle) {
                 AddUnit(unit, pos, parent.faction);
@@ -523,7 +520,11 @@ public class MapController : MonoBehaviour
     //Регистрация победы
     private void Victory(int faction)
     {
+        //Отключаем управление
+        canCommand = false;
+
         //Выводим табличку
+        winPanel.gameObject.SetActive(true);
         Debug.Log(string.Format("Игрок {0} победил!", faction));
     }
 
@@ -559,6 +560,11 @@ public class MapController : MonoBehaviour
         else {
             HighlightArea(_dijkstra.Keys, Vector3Int.zero);
         }
+    }
+
+    public void CloseTutorial()
+    {
+        tutorialPanel.gameObject.SetActive(false);
     }
     #endregion
 }
